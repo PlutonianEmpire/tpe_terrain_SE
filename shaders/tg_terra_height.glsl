@@ -3,82 +3,6 @@
 #ifdef _FRAGMENT_
 
 //-----------------------------------------------------------------------------
-// Non-uniform droplet erosion function
-//-----------------------------------------------------------------------------
-
-vec3 NonUniformDropletErosion(vec3 point, float erosionStrength, float time)
-{
-    // Parameters for droplet erosion
-    float dropletRadius = 0.1;
-    float dropletFalloff = 0.5;
-    float erosionFactor = 0.8;
-
-    // Calculate erosion effect based on position and time
-    float distance = length(point.xy);
-    float erosionEffect = exp(-distance * dropletFalloff) * erosionStrength;
-
-    // Apply erosion effect to the point
-    vec3 erodedPoint = point;
-    erodedPoint.z -= erosionEffect * erosionFactor * sin(time + distance);
-
-    return erodedPoint;
-}
-
-//-----------------------------------------------------------------------------
-// Ridged multifractal with "non-uniform droplet erosion"
-
-float RidgedMultifractalDroplet(vec3 point, float gain, float erosionStrength, float time)
-{
-    float frequency = 1.0;
-    float amplitude = 1.0;
-    float summ = 0.0;
-    float signal = 1.0;
-    float weight;
-    vec3 dsum = vec3(0.0);
-    vec4 noiseDeriv;
-    for (int i = 0; i < noiseOctaves; ++i)
-    {
-        vec3 erodedPoint = NonUniformDropletErosion(point + dsum, erosionStrength, time);
-        noiseDeriv = NoiseDeriv(erodedPoint * frequency);
-        weight = saturate(signal * gain);
-        signal = noiseOffset - sqrt(noiseRidgeSmooth + noiseDeriv.w * noiseDeriv.w);
-        signal *= signal * weight;
-        amplitude = pow(frequency, -noiseH);
-        summ += signal * amplitude;
-        frequency *= noiseLacunarity;
-        dsum -= amplitude * noiseDeriv.xyz * noiseDeriv.w;
-    }
-    return summ;
-}
-
-//-----------------------------------------------------------------------------
-// Ridged multifractal detail with "non-uniform droplet erosion"
-
-float RidgedMultifractalDropletDetail(vec3 point, float gain, float erosionStrength, float time, float firstOctaveValue)
-{
-    float frequency = 1.0;
-    float amplitude = 1.0;
-    float summ = firstOctaveValue;
-    float signal = firstOctaveValue;
-    float weight;
-    vec3 dsum = vec3(0.0);
-    vec4 noiseDeriv;
-    for (int i = 0; i < noiseOctaves; ++i)
-    {
-        vec3 erodedPoint = NonUniformDropletErosion(point + dsum, erosionStrength, time);
-        noiseDeriv = NoiseDeriv(erodedPoint * frequency);
-        weight = saturate(signal * gain);
-        signal = noiseOffset - sqrt(noiseRidgeSmooth + noiseDeriv.w * noiseDeriv.w);
-        signal *= signal * weight;
-        amplitude = pow(frequency, -noiseH);
-        summ += signal * amplitude;
-        frequency *= noiseLacunarity;
-        dsum -= amplitude * noiseDeriv.xyz * noiseDeriv.w;
-    }
-    return summ;
-}
-
-//-----------------------------------------------------------------------------
 //	RODRIGO - SMALL CHANGES TO RIVERS AND RIFTS
 // Modified Rodrigo's rivers
 
@@ -203,8 +127,8 @@ float   HeightMapTerra(vec3 point, out vec4 HeightBiomeMap)
 		// }
 		global = (global + venus - seaLevel) * 0.5 + seaLevel;
 		float shore = saturate(70.0 * (global - seaLevel));
-			// noiseOctaves = 8;
-			// vec3  pp = (point + Randomize) * 22.25;
+			noiseOctaves = 8;
+			vec3  pp = (point + Randomize) * 22.25;
 
 	// Biome domains
 		noiseOctaves = 6;
@@ -212,21 +136,22 @@ float   HeightMapTerra(vec3 point, out vec4 HeightBiomeMap)
 		vec4  col;
 		vec2  cell = Cell3Noise2Color(p, col);
 		float biome = col.r;
-		float biomeScale = saturate(2.0 * (pow(abs(cell.y - cell.x), 0.7) - 0.05));
+		// float biomeScale = saturate(2.0 * (pow(abs(cell.y - cell.x), 0.7) - 0.05));
+		float biomeScale = saturate(2.0 * (smoothstep(0.0, 1.0, abs(cell.y - cell.x)) - 0.05));
 		float terrace = col.g;
 		float terraceLayers = max(col.b * 10.0 + 3.0, 3.0);
 			terraceLayers += Fbm(p * 5.41);
 		float montRange = saturate(DistNoise(point * 22.6 + Randomize, 2.5) + 0.5);
 			montRange *= montRange;
-		float montBiomeScale = min(pow(2.2 * biomeScale, 3.0), 1.0) * montRange;
+		float montBiomeScale = min(pow(2.2 * biomeScale, 2.5), 1.0) * montRange;
 		float inv2montesSpiky = 1.0 /(montesSpiky*montesSpiky);
 		float heightD = 0.0;
 		float height = 0.0;
 		float landform = 0.0;
 		float dist;
 		
-		noiseOctaves = 8;
-		vec3  pp = (point + Randomize) * (0.0005 * hillsFreq / (hillsMagn * hillsMagn));
+		// noiseOctaves = 8;
+		// vec3  pp = (point + Randomize) * (0.0005 * hillsFreq / (hillsMagn * hillsMagn));
 		
 		noiseOctaves = 12.0;
 		distort = Fbm3D((point + Randomize) * 0.07) * 1.5;
@@ -282,30 +207,23 @@ float   HeightMapTerra(vec3 point, out vec4 HeightBiomeMap)
 
 	if (biome < dunesFraction)
 	{
-		if (dunesFraction > 0.105)
-		{
-			// Dunes
-			noiseOctaves = 2.0;
-			dist = dunesFreq + Fbm(p * 1.21);
-			float desert = max(Fbm(p * dist), 0.0);
-			float dunes  = DunesNoise(point, 3);
-			landform = (0.0002 * desert + dunes) * pow(biomeScale, 3);
-			// heightD = 0.2 * max(Fbm(p * dist * 0.3) + 0.7, 0.0);
-			// heightD = biomeScale * dunesMagn * (heightD + DunesNoise(point, 3));
-			heightD += dunesMagn * landform;
-		}
-		else
-		{
-			// Star Dunes
-			// vec3 twistedPoint = point;
-			noiseOctaves = 10.0;
-			noiseH       = 100;
-			noiseLacunarity = 2.1;
-			dist = dunesFreq + Fbm(p * 1.21);
-			heightD = max(Fbm(p * dist * 0.3) + 0.7, 0.0);
-			heightD = 0.2 * max(Fbm(p * dist * 0.3) + 0.7, 0.0);
-			heightD = biomeScale * dunesMagn * (JordanTurbulence(point * (dunesFreq / 3) + Randomize, 0.8, 0.5, 0.6, 0.35, 1.0, 0.8, 1.0) * (dunesMagn * 100)) * (RidgedMultifractalErodedDetail(point * (dunesFreq * 1.75) + Randomize, 2.0, (erosion * 1.5), biomeScale) * dunesMagn);
-		}
+		
+		// Dunes
+		noiseOctaves = 2.0;
+		dist = dunesFreq + Fbm(p * 1.21);
+		float desert = max(Fbm(p * dist), 0.0);
+		float dunes  = DunesNoise(point, 3);
+		landform = (0.0002 * desert + dunes) * pow(biomeScale, 3);
+		// heightD = 0.2 * max(Fbm(p * dist * 0.3) + 0.7, 0.0);
+		// heightD = biomeScale * dunesMagn * (heightD + DunesNoise(point, 3));
+		heightD *= dunesMagn * landform;
+		
+		/*
+        // "Eroded" hills 2
+        noiseOctaves = 10.0;
+        noiseLacunarity = 2.0;
+        height = biomeScale * dunesMagn * JordanTurbulence(point * dunesFreq + Randomize, 0.8, 0.5, 0.6, 0.35, 1.0, 0.8, 1.0);
+		*/
 	}
 	else if (biome < hillsFraction)
 	{
@@ -408,7 +326,7 @@ float   HeightMapTerra(vec3 point, out vec4 HeightBiomeMap)
 	{
 		// mare = saturate(global);
 		mare = smoothstep(-0.25, 1.26, shore * mare);
-		mareFloor = 0.6 * (1.0 - Cell3Noise(0.3*p));
+		// mareFloor = 0.6 * (1.0 - Cell3Noise(0.3*p));
 		// mare = softPolyMin(mare, 0.99, 0.3);
 		// mare = softPolyMax(mare, 0.05, 0.1);
 	}
@@ -575,7 +493,7 @@ float   HeightMapTerra(vec3 point, out vec4 HeightBiomeMap)
 	}
 
 	// Apply ice caps
-		height = height * oceaniaFade + icecapHeight * 10.0 * smoothstep(0.0, snowLevel, iceCap) * ((RidgedMultifractalErodedDetail(point * (venusFreq + dunesFreq) + Randomize, 2.0, (erosion * 1.5), iceCap) * icecapHeight + 9.2) * 0.1);
+		height = height * oceaniaFade + icecapHeight * 10.0 * smoothstep(0.0, snowLevel, iceCap) * ((RidgedMultifractalErodedDetail(point * venusFreq + Randomize, 2.0, (erosion * 1.5), iceCap) * icecapHeight + 9.2) * 0.1);
 		// height = height * oceaniaFade + icecapHeight * smoothstep(0.0, 1.0, iceCap);
 		
 		noiseLacunarity = 2.218281828459;
