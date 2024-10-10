@@ -321,6 +321,19 @@ float   HeightMapSelena(vec3 point)
 	else
 	{
 		height += saturate(mare + crater);
+		
+		noiseOctaves = 8.0;
+		float zr = 1.0 - Fbm((point + distort) * 0.78)+0.20 * (1.5 - RidgedMultifractal(pp, 2.0)) + 0.05 * (1.5 - RidgedMultifractalEroded(pp * 10.0,  2.0, 0.5*erosion)) + 0.04 * (1.5 - RidgedMultifractal(pp * 100.0, 4.0));
+		zr = smoothstep(0.0, 1.0, 0.2*zr*zr);
+		zr *= 1 - smoothstep(0.0, 0.02, seaLevel-global);
+		zr = 0.1*hillsFreq* smoothstep(0.0, 1.0, zr);
+		global =  mix(global,global+0.0006,zr);
+		
+        float rr  = 0.3*((0.15 * iqTurbulence(point * 0.4 * montesFreq +Randomize, 0.45)) * (RidgedMultifractalDetail(point * point * montesFreq *0.8+ venus + Randomize, 1.0, montBiomeScale)));
+		rr *= 1 - smoothstep(0.0, 0.02, seaLevel-global);
+		global += rr;
+		
+		global = 0.9 * global + 0.06 * (fr * zr * rr);
 	}
 	
 	/*

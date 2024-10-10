@@ -201,6 +201,30 @@ vec4  ColorMapSelena(vec3 point, float height, float slope, vec3 norm, in BiomeD
 		surf.color.rgb *= mix(colorVary, vec3(1.0), vary); 
 	}
 	
+	else
+	{
+		float global = 1.0; // - Cell3Noise(p + distort);
+		
+		noiseOctaves = 8.0;
+		float fr = 0.20 * (1.5 - RidgedMultifractal(zz, 2.0)) + 0.05 * (1.5 - RidgedMultifractal(zz * 10.0,  2.0));
+			zz *= 1 - smoothstep(-0.01, 0.02, biomeData.height - seaLevel);
+			
+		noiseOctaves = 8.0;
+		float zr = 1.0 - Fbm((point + distort) * 0.78)+0.20 * (1.5 - RidgedMultifractal(zz, 2.0)) + 0.05 * (1.5 - RidgedMultifractalDetail(zz * 10.0,  2.0, 0.5*biomeScale)) + 0.04 * (1.5 - RidgedMultifractal(zz * 100.0, 4.0));
+		zr = smoothstep(0.0, 1.0, 0.2*zr*zr);
+		zr *= 1 - smoothstep(0.0, 0.02, biomeData.height - seaLevel);
+		zr = 0.1*hillsFreq* smoothstep(0.0, 1.0, zr);
+		global =  mix(global,global+0.0006,zr);
+		
+        float rr  = 0.3*((0.15 * iqTurbulence(point * 0.4 * montesFreq +Randomize, 0.45)) * (RidgedMultifractalDetail(point * point * montesFreq *0.8 + Randomize, 1.0, biomeScale)));
+		rr *= 1 - smoothstep(0.0, 0.02, biomeData.height - seaLevel);
+		global += rr;
+		
+		global = 0.9 * global + 0.06 * (fr * zr * rr);
+		
+		surf.color.rgb *= mix(colorVary, vec3(1.0), global); 
+	}
+	
 	/*
 	if ((cracksOctaves > 0.0) && (canyonsMagn < 0.6) && (mareFreq < 1.7))
 	{

@@ -3,6 +3,42 @@
 #ifdef _FRAGMENT_
 
 //-----------------------------------------------------------------------------
+
+vec2    tpeCell3Noise2Color(vec3 p, out vec4 color)
+{
+    vec3  cell = floor(p);
+    vec3  offs = p - cell;
+    vec3  pos;
+    vec4  rnd;
+    vec4  rndM = vec4(1.0);
+    vec3  d;
+    float dist;
+    float distMin1 = 1.0e38;
+    float distMin2 = 1.0e38;
+    for (d.z=-1.0; d.z<2.0; d.z+=1.0)
+    {
+        for (d.y=-1.0; d.y<2.0; d.y+=1.0)
+        {
+            for (d.x=-1.0; d.x<2.0; d.x+=1.0)
+            {
+                rnd = NoiseNearestUVec4((cell + d) / NOISE_TEX_3D_SIZE);
+                pos = rnd.xyz + d - offs;
+                dist = dot(pos, pos);
+                if (dist < distMin1) {
+					distMin2 = distMin1;
+					distMin1 = dist;
+					rndM = rnd;
+				} else if (dist < distMin2) {
+					distMin2 = dist;
+				}
+            }
+        }
+    }
+    color = rndM;
+    return sqrt(vec2(distMin1, distMin2));
+}
+
+//-----------------------------------------------------------------------------
 //	RODRIGO - SMALL CHANGES TO RIVERS AND RIFTS
 // Modified Rodrigo's rivers
 
@@ -136,14 +172,14 @@ float   HeightMapTerra(vec3 point, out vec4 HeightBiomeMap)
 		vec4  col;
 		vec2  cell = Cell3Noise2Color(p, col);
 		float biome = col.r;
-		// float biomeScale = saturate(2.0 * (pow(abs(cell.y - cell.x), 0.7) - 0.05));
-		float biomeScale = saturate(2.0 * (smoothstep(0.0, 1.0, abs(cell.y - cell.x)) - 0.05));
+		float biomeScale = saturate(2.0 * (pow(abs(cell.y - cell.x), 0.7) - 0.05));
+		// float biomeScale = saturate(2.0 * (smoothstep(0.0, 1.0, abs(cell.y - cell.x)) - 0.05));
 		float terrace = col.g;
 		float terraceLayers = max(col.b * 10.0 + 3.0, 3.0);
 			terraceLayers += Fbm(p * 5.41);
 		float montRange = saturate(DistNoise(point * 22.6 + Randomize, 2.5) + 0.5);
 			montRange *= montRange;
-		float montBiomeScale = min(pow(2.2 * biomeScale, 2.5), 1.0) * montRange;
+		float montBiomeScale = min(pow(2.2 * biomeScale, 3.0), 1.0) * montRange;
 		float inv2montesSpiky = 1.0 /(montesSpiky*montesSpiky);
 		float heightD = 0.0;
 		float height = 0.0;
@@ -151,7 +187,8 @@ float   HeightMapTerra(vec3 point, out vec4 HeightBiomeMap)
 		float dist;
 		
 		// noiseOctaves = 8;
-		// vec3  pp = (point + Randomize) * (0.0005 * hillsFreq / (hillsMagn * hillsMagn));
+		// landform = RidgedMultifractalDetail(point * Randomize, 1.0, global);
+		// vec3  pp = (point + Randomize) * (0.0005 * mainFreq / (landform * landform));
 		
 		noiseOctaves = 12.0;
 		distort = Fbm3D((point + Randomize) * 0.07) * 1.5;
@@ -207,7 +244,6 @@ float   HeightMapTerra(vec3 point, out vec4 HeightBiomeMap)
 
 	if (biome < dunesFraction)
 	{
-		
 		// Dunes
 		noiseOctaves = 2.0;
 		dist = dunesFreq + Fbm(p * 1.21);
@@ -216,14 +252,7 @@ float   HeightMapTerra(vec3 point, out vec4 HeightBiomeMap)
 		landform = (0.0002 * desert + dunes) * pow(biomeScale, 3);
 		// heightD = 0.2 * max(Fbm(p * dist * 0.3) + 0.7, 0.0);
 		// heightD = biomeScale * dunesMagn * (heightD + DunesNoise(point, 3));
-		heightD *= dunesMagn * landform;
-		
-		/*
-        // "Eroded" hills 2
-        noiseOctaves = 10.0;
-        noiseLacunarity = 2.0;
-        height = biomeScale * dunesMagn * JordanTurbulence(point * dunesFreq + Randomize, 0.8, 0.5, 0.6, 0.35, 1.0, 0.8, 1.0);
-		*/
+		height *= dunesMagn * landform;
 	}
 	else if (biome < hillsFraction)
 	{
@@ -493,7 +522,7 @@ float   HeightMapTerra(vec3 point, out vec4 HeightBiomeMap)
 	}
 
 	// Apply ice caps
-		height = height * oceaniaFade + icecapHeight * 10.0 * smoothstep(0.0, snowLevel, iceCap) * ((RidgedMultifractalErodedDetail(point * venusFreq + Randomize, 2.0, (erosion * 1.5), iceCap) * icecapHeight + 9.2) * 0.1);
+		height = height * oceaniaFade + icecapHeight * 10.0 * smoothstep(0.0, snowLevel, iceCap) * ((RidgedMultifractalErodedDetail(point * (venusFreq + dunesFreq) + Randomize, 2.0, (erosion * 1.5), iceCap) * icecapHeight + 9.2) * 0.1);
 		// height = height * oceaniaFade + icecapHeight * smoothstep(0.0, 1.0, iceCap);
 		
 		noiseLacunarity = 2.218281828459;
